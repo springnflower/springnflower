@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>로그인</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body class="centered">
+    <main class="card">
+      <h1>로그인</h1>
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          <div class="flash">
+            {% for message in messages %}
+              <p>{{ message }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      <form method="post" class="form">
+        <label>
+          아이디
+          <input type="text" name="username" autocomplete="username" required />
+        </label>
+        <label>
+          비밀번호
+          <input type="password" name="password" autocomplete="current-password" required />
+        </label>
+        <button type="submit" class="button primary">로그인</button>
+      </form>
+    </main>
+  </body>
+</html>

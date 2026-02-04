@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from datetime import datetime
+from functools import wraps
 from io import BytesIO
 from urllib.parse import urlencode
 
@@ -15,8 +16,10 @@ from flask import (
     render_template,
     request,
     send_file,
+    session,
     url_for,
 )
+from werkzeug.security import check_password_hash, generate_password_hash
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
 DB_PATH = os.path.join(APP_DIR, "data", "influencers.db")
@@ -48,6 +51,15 @@ DEFAULT_DISCOVER_LIMIT = 10
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL
+        )
+        """
+    )
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS influencers (
@@ -109,6 +121,15 @@ def init_db():
     for col, col_type in required_cols.items():
         if col not in existing_cols:
             conn.execute(f"ALTER TABLE influencers ADD COLUMN {col} {col_type}")
+    user = conn.execute(
+        "SELECT id FROM users WHERE username = ?",
+        ("spler",),
+    ).fetchone()
+    if not user:
+        conn.execute(
+            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+            ("spler", generate_password_hash("spler123")),
+        )
     conn.commit()
     conn.close()
 
@@ -118,6 +139,15 @@ def create_app():
     app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY", "dev-secret")
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     init_db()
+
+    def login_required(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            if "user_id" not in session:
+                return redirect(url_for("login"))
+            return view(*args, **kwargs)
+
+        return wrapped
 
     def get_db():
         conn = sqlite3.connect(DB_PATH)
@@ -408,7 +438,34 @@ def create_app():
             req.args.get("columns", ""),
         )
 
+    @app.route("/login", methods=["GET", "POST"])
+    def login():
+        if request.method == "POST":
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "").strip()
+            if not username or not password:
+                flash("아이디와 비밀번호를 입력해 주세요.")
+                return render_template("login.html")
+            conn = get_db()
+            user = conn.execute(
+                "SELECT id, password_hash FROM users WHERE username = ?",
+                (username,),
+            ).fetchone()
+            conn.close()
+            if not user or not check_password_hash(user["password_hash"], password):
+                flash("로그인 정보가 올바르지 않습니다.")
+                return render_template("login.html")
+            session["user_id"] = user["id"]
+            return redirect(url_for("index"))
+        return render_template("login.html")
+
+    @app.route("/logout")
+    def logout():
+        session.clear()
+        return redirect(url_for("login"))
+
     @app.route("/")
+    @login_required
     def index():
         filters = build_filters(request)
         conn = get_db()
@@ -446,6 +503,7 @@ def create_app():
         )
 
     @app.route("/search")
+    @login_required
     def search():
         filters = build_filters(request)
         conn = get_db()
@@ -483,6 +541,7 @@ def create_app():
         )
 
     @app.route("/discover", methods=["GET"])
+    @login_required
     def discover():
         query = request.args.get("q", "").strip()
         platform = request.args.get("platform", "").strip()
@@ -519,6 +578,7 @@ def create_app():
         )
 
     @app.route("/new", methods=["GET", "POST"])
+    @login_required
     def new():
         if request.method == "POST":
             form = extract_form(request)
@@ -528,6 +588,7 @@ def create_app():
         return render_template("edit.html", influencer=None)
 
     @app.route("/edit/<int:influencer_id>", methods=["GET", "POST"])
+    @login_required
     def edit(influencer_id):
         conn = get_db()
         influencer = conn.execute(
@@ -545,6 +606,7 @@ def create_app():
         return render_template("edit.html", influencer=influencer)
 
     @app.route("/delete/<int:influencer_id>", methods=["POST"])
+    @login_required
     def delete(influencer_id):
         conn = get_db()
         conn.execute("DELETE FROM influencers WHERE id = ?", (influencer_id,))
@@ -554,6 +616,7 @@ def create_app():
         return redirect(url_for("index"))
 
     @app.route("/import", methods=["GET", "POST"])
+    @login_required
     def import_excel():
         if request.method == "POST":
             file = request.files.get("file")
@@ -650,6 +713,7 @@ def create_app():
         return render_template("import.html")
 
     @app.route("/dm/apply", methods=["POST"])
+    @login_required
     def apply_dm_template():
         dm_template = request.form.get("dm_template", "").strip()
         if not dm_template:
@@ -682,6 +746,7 @@ def create_app():
         return redirect(url_for("index"))
 
     @app.route("/export")
+    @login_required
     def export_excel():
         filters = build_filters(request)
         selected_columns = filters["selected_columns"]
