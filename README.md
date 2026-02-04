@@ -53,3 +53,7 @@ SQLite는 소규모 협업에 적합하며, 동시성이 많아지면 별도 DB�
 ## 외부 추천 서칭 (API 키)
 - YouTube: 환경변수 `YOUTUBE_API_KEY`
 - Instagram: 환경변수 `SERPAPI_KEY` (SerpAPI 사용)
+
+## 데이터 영구 저장 (PostgreSQL)
+Render PostgreSQL을 사용하려면 환경변수 `DATABASE_URL`을 설정하세요.
+설정되면 자동으로 PostgreSQL을 사용하고, 미설정 시 SQLite를 사용합니다.

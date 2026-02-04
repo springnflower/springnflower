@@ -8,6 +8,8 @@ from urllib.parse import urlencode
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from flask import (
     Flask,
     abort,
@@ -23,6 +25,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
 DB_PATH = os.path.join(APP_DIR, "data", "influencers.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 COLUMN_LABELS = {
     "influencer_id": "인플루언서ID",
     "platform": "플랫폼",
@@ -49,50 +52,134 @@ COLUMN_LABELS = {
 DEFAULT_DISCOVER_LIMIT = 10
 
 
-def init_db():
+def get_db():
+    if DATABASE_URL:
+        db_url = DATABASE_URL
+        if "sslmode=" not in db_url:
+            joiner = "&" if "?" in db_url else "?"
+            db_url = f"{db_url}{joiner}sslmode=require"
+        conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
+        return conn, True
     conn = sqlite3.connect(DB_PATH)
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL
+    conn.row_factory = sqlite3.Row
+    return conn, False
+
+
+def format_query(query, is_postgres):
+    if not is_postgres:
+        return query
+    return query.replace("?", "%s")
+
+
+def run_query(conn, is_postgres, query, params=None, fetch_one=False, fetch_all=False):
+    params = params or ()
+    q = format_query(query, is_postgres)
+    cursor = conn.cursor()
+    cursor.execute(q, params)
+    if fetch_one:
+        return cursor.fetchone()
+    if fetch_all:
+        return cursor.fetchall()
+    return None
+
+
+def init_db():
+    conn, is_postgres = get_db()
+    if is_postgres:
+        conn.cursor().execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL
+            )
+            """
         )
-        """
-    )
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS influencers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            influencer_id TEXT,
-            platform TEXT,
-            category_main TEXT,
-            category_sub TEXT,
-            account_name TEXT NOT NULL,
-            profile_url TEXT,
-            instagram_username TEXT,
-            contact_email TEXT,
-            agency TEXT,
-            followers_raw TEXT,
-            followers_num INTEGER,
-            follower_range TEXT,
-            video_usage TEXT,
-            target_2030_score INTEGER,
-            price_bdc TEXT,
-            price_ppl TEXT,
-            price_short TEXT,
-            price_ig TEXT,
-            thumbnail_url TEXT,
-            dm_message TEXT,
-            notes TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
+        conn.cursor().execute(
+            """
+            CREATE TABLE IF NOT EXISTS influencers (
+                id SERIAL PRIMARY KEY,
+                influencer_id TEXT,
+                platform TEXT,
+                category_main TEXT,
+                category_sub TEXT,
+                account_name TEXT NOT NULL,
+                profile_url TEXT,
+                instagram_username TEXT,
+                contact_email TEXT,
+                agency TEXT,
+                followers_raw TEXT,
+                followers_num INTEGER,
+                follower_range TEXT,
+                video_usage TEXT,
+                target_2030_score INTEGER,
+                price_bdc TEXT,
+                price_ppl TEXT,
+                price_short TEXT,
+                price_ig TEXT,
+                thumbnail_url TEXT,
+                dm_message TEXT,
+                notes TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
         )
-        """
-    )
-    existing_cols = {
-        row[1] for row in conn.execute("PRAGMA table_info(influencers)").fetchall()
-    }
+        existing_cols = {
+            row["column_name"]
+            for row in run_query(
+                conn,
+                is_postgres,
+                """
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'influencers'
+                """,
+                fetch_all=True,
+            )
+        }
+    else:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS influencers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                influencer_id TEXT,
+                platform TEXT,
+                category_main TEXT,
+                category_sub TEXT,
+                account_name TEXT NOT NULL,
+                profile_url TEXT,
+                instagram_username TEXT,
+                contact_email TEXT,
+                agency TEXT,
+                followers_raw TEXT,
+                followers_num INTEGER,
+                follower_range TEXT,
+                video_usage TEXT,
+                target_2030_score INTEGER,
+                price_bdc TEXT,
+                price_ppl TEXT,
+                price_short TEXT,
+                price_ig TEXT,
+                thumbnail_url TEXT,
+                dm_message TEXT,
+                notes TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        existing_cols = {
+            row[1] for row in conn.execute("PRAGMA table_info(influencers)").fetchall()
+        }
     required_cols = {
         "influencer_id": "TEXT",
         "platform": "TEXT",
@@ -120,13 +207,22 @@ def init_db():
     }
     for col, col_type in required_cols.items():
         if col not in existing_cols:
-            conn.execute(f"ALTER TABLE influencers ADD COLUMN {col} {col_type}")
-    user = conn.execute(
+            run_query(
+                conn,
+                is_postgres,
+                f"ALTER TABLE influencers ADD COLUMN {col} {col_type}",
+            )
+    user = run_query(
+        conn,
+        is_postgres,
         "SELECT id FROM users WHERE username = ?",
         ("spler",),
-    ).fetchone()
+        fetch_one=True,
+    )
     if not user:
-        conn.execute(
+        run_query(
+            conn,
+            is_postgres,
             "INSERT INTO users (username, password_hash) VALUES (?, ?)",
             ("spler", generate_password_hash("spler123")),
         )
@@ -148,11 +244,6 @@ def create_app():
             return view(*args, **kwargs)
 
         return wrapped
-
-    def get_db():
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        return conn
 
     def coerce_int(value):
         try:
@@ -446,11 +537,14 @@ def create_app():
             if not username or not password:
                 flash("아이디와 비밀번호를 입력해 주세요.")
                 return render_template("login.html")
-            conn = get_db()
-            user = conn.execute(
+            conn, is_postgres = get_db()
+            user = run_query(
+                conn,
+                is_postgres,
                 "SELECT id, password_hash FROM users WHERE username = ?",
                 (username,),
-            ).fetchone()
+                fetch_one=True,
+            )
             conn.close()
             if not user or not check_password_hash(user["password_hash"], password):
                 flash("로그인 정보가 올바르지 않습니다.")
@@ -468,24 +562,36 @@ def create_app():
     @login_required
     def index():
         filters = build_filters(request)
-        conn = get_db()
-        influencers = conn.execute(
+        conn, is_postgres = get_db()
+        influencers = run_query(
+            conn,
+            is_postgres,
             f"""
             SELECT * FROM influencers
             {filters["where_clause"]}
             ORDER BY updated_at DESC
             """,
             filters["params"],
-        ).fetchall()
-        platforms = conn.execute(
-            "SELECT DISTINCT platform FROM influencers WHERE platform IS NOT NULL AND platform != ''"
-        ).fetchall()
-        categories = conn.execute(
-            "SELECT DISTINCT category_main FROM influencers WHERE category_main IS NOT NULL AND category_main != ''"
-        ).fetchall()
-        sub_categories = conn.execute(
-            "SELECT DISTINCT category_sub FROM influencers WHERE category_sub IS NOT NULL AND category_sub != ''"
-        ).fetchall()
+            fetch_all=True,
+        )
+        platforms = run_query(
+            conn,
+            is_postgres,
+            "SELECT DISTINCT platform FROM influencers WHERE platform IS NOT NULL AND platform != ''",
+            fetch_all=True,
+        )
+        categories = run_query(
+            conn,
+            is_postgres,
+            "SELECT DISTINCT category_main FROM influencers WHERE category_main IS NOT NULL AND category_main != ''",
+            fetch_all=True,
+        )
+        sub_categories = run_query(
+            conn,
+            is_postgres,
+            "SELECT DISTINCT category_sub FROM influencers WHERE category_sub IS NOT NULL AND category_sub != ''",
+            fetch_all=True,
+        )
         conn.close()
         return render_template(
             "index.html",
@@ -506,24 +612,36 @@ def create_app():
     @login_required
     def search():
         filters = build_filters(request)
-        conn = get_db()
-        influencers = conn.execute(
+        conn, is_postgres = get_db()
+        influencers = run_query(
+            conn,
+            is_postgres,
             f"""
             SELECT * FROM influencers
             {filters["where_clause"]}
             ORDER BY updated_at DESC
             """,
             filters["params"],
-        ).fetchall()
-        platforms = conn.execute(
-            "SELECT DISTINCT platform FROM influencers WHERE platform IS NOT NULL AND platform != ''"
-        ).fetchall()
-        categories = conn.execute(
-            "SELECT DISTINCT category_main FROM influencers WHERE category_main IS NOT NULL AND category_main != ''"
-        ).fetchall()
-        sub_categories = conn.execute(
-            "SELECT DISTINCT category_sub FROM influencers WHERE category_sub IS NOT NULL AND category_sub != ''"
-        ).fetchall()
+            fetch_all=True,
+        )
+        platforms = run_query(
+            conn,
+            is_postgres,
+            "SELECT DISTINCT platform FROM influencers WHERE platform IS NOT NULL AND platform != ''",
+            fetch_all=True,
+        )
+        categories = run_query(
+            conn,
+            is_postgres,
+            "SELECT DISTINCT category_main FROM influencers WHERE category_main IS NOT NULL AND category_main != ''",
+            fetch_all=True,
+        )
+        sub_categories = run_query(
+            conn,
+            is_postgres,
+            "SELECT DISTINCT category_sub FROM influencers WHERE category_sub IS NOT NULL AND category_sub != ''",
+            fetch_all=True,
+        )
         conn.close()
         return render_template(
             "search.html",
@@ -590,11 +708,14 @@ def create_app():
     @app.route("/edit/<int:influencer_id>", methods=["GET", "POST"])
     @login_required
     def edit(influencer_id):
-        conn = get_db()
-        influencer = conn.execute(
+        conn, is_postgres = get_db()
+        influencer = run_query(
+            conn,
+            is_postgres,
             "SELECT * FROM influencers WHERE id = ?",
             (influencer_id,),
-        ).fetchone()
+            fetch_one=True,
+        )
         conn.close()
         if not influencer:
             abort(404)
@@ -608,8 +729,13 @@ def create_app():
     @app.route("/delete/<int:influencer_id>", methods=["POST"])
     @login_required
     def delete(influencer_id):
-        conn = get_db()
-        conn.execute("DELETE FROM influencers WHERE id = ?", (influencer_id,))
+        conn, is_postgres = get_db()
+        run_query(
+            conn,
+            is_postgres,
+            "DELETE FROM influencers WHERE id = ?",
+            (influencer_id,),
+        )
         conn.commit()
         conn.close()
         flash("삭제되었습니다.")
@@ -636,7 +762,7 @@ def create_app():
 
             df = df.dropna(subset=["account_name"])
             rows = 0
-            conn = get_db()
+            conn, is_postgres = get_db()
             for _, row in df.iterrows():
                 data = {
                     "influencer_id": clean_text(row.get("influencer_id")),
@@ -669,7 +795,9 @@ def create_app():
                     data["thumbnail_url"] = fetch_thumbnail_url(data["profile_url"])
                 if not data["account_name"]:
                     continue
-                conn.execute(
+                run_query(
+                    conn,
+                    is_postgres,
                     """
                     INSERT INTO influencers (
                         influencer_id, platform, category_main, category_sub,
@@ -731,12 +859,18 @@ def create_app():
             flash("전체 적용은 체크박스를 선택해 주세요.")
             return redirect(url_for("index"))
 
-        conn = get_db()
-        count = conn.execute(
-            f"SELECT COUNT(*) FROM influencers {filters['where_clause']}",
+        conn, is_postgres = get_db()
+        count_row = run_query(
+            conn,
+            is_postgres,
+            f"SELECT COUNT(*) as cnt FROM influencers {filters['where_clause']}",
             filters["params"],
-        ).fetchone()[0]
-        conn.execute(
+            fetch_one=True,
+        )
+        count = count_row["cnt"] if isinstance(count_row, dict) else count_row[0]
+        run_query(
+            conn,
+            is_postgres,
             f"UPDATE influencers SET dm_message = ? {filters['where_clause']}",
             [dm_template] + filters["params"],
         )
@@ -755,15 +889,18 @@ def create_app():
             return redirect(url_for("index"))
 
         columns_sql = ", ".join(selected_columns)
-        conn = get_db()
-        rows = conn.execute(
+        conn, is_postgres = get_db()
+        rows = run_query(
+            conn,
+            is_postgres,
             f"""
             SELECT {columns_sql} FROM influencers
             {filters["where_clause"]}
             ORDER BY updated_at DESC
             """,
             filters["params"],
-        ).fetchall()
+            fetch_all=True,
+        )
         conn.close()
 
         data = []
@@ -818,8 +955,10 @@ def create_app():
             )
         if not data.get("thumbnail_url") and data.get("profile_url"):
             data["thumbnail_url"] = fetch_thumbnail_url(data["profile_url"])
-        conn = get_db()
-        conn.execute(
+        conn, is_postgres = get_db()
+        run_query(
+            conn,
+            is_postgres,
             """
             INSERT INTO influencers (
                 influencer_id, platform, category_main, category_sub,
@@ -866,8 +1005,10 @@ def create_app():
             )
         if not data.get("thumbnail_url") and data.get("profile_url"):
             data["thumbnail_url"] = fetch_thumbnail_url(data["profile_url"])
-        conn = get_db()
-        conn.execute(
+        conn, is_postgres = get_db()
+        run_query(
+            conn,
+            is_postgres,
             """
             UPDATE influencers SET
                 influencer_id = ?,
