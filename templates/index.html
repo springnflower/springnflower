@@ -1,0 +1,165 @@
+{% extends "layout.html" %}
+
+{% block content %}
+  <section class="card">
+    <form method="get" class="form inline">
+      <input
+        type="text"
+        name="q"
+        value="{{ q }}"
+        placeholder="검색 (이름/계정명, 카테고리, 이메일, 비고 등)"
+      />
+      <select name="platform">
+        <option value="">플랫폼 전체</option>
+        {% for p in platforms %}
+          <option value="{{ p }}" {% if p == platform %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+      <select name="category_main">
+        <option value="">카테고리(대) 전체</option>
+        {% for c in categories %}
+          <option value="{{ c }}" {% if c == category_main %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+      <select name="category_sub">
+        <option value="">카테고리(소) 전체</option>
+        {% for c in sub_categories %}
+          <option value="{{ c }}" {% if c == category_sub %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+      {% for col in selected_columns %}
+        <input type="hidden" name="columns" value="{{ col }}" />
+      {% endfor %}
+      <button class="button">검색</button>
+      <a class="button ghost" href="{{ url_for('index') }}">초기화</a>
+      <a
+        class="button ghost"
+        href="{{ url_for('export_excel', q=q, platform=platform, category_main=category_main, category_sub=category_sub, columns=(','.join(selected_columns))) }}"
+      >
+        엑셀 내보내기
+      </a>
+    </form>
+  </section>
+
+  <section class="card">
+    <h3>인스타그램 DM 문구 일괄 적용</h3>
+    <form method="post" action="{{ url_for('apply_dm_template') }}" class="form">
+      <label class="full">
+        DM 문구 템플릿 (예: {이름}, {인스타그램아이디}, {플랫폼})
+        <textarea name="dm_template" rows="3" placeholder="안녕하세요 {이름}님, ..."></textarea>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" name="confirm_all" value="yes" />
+        <span>필터 없이 전체 적용 허용</span>
+      </label>
+      <input type="hidden" name="q" value="{{ q }}" />
+      <input type="hidden" name="platform" value="{{ platform }}" />
+      <input type="hidden" name="category_main" value="{{ category_main }}" />
+      <input type="hidden" name="category_sub" value="{{ category_sub }}" />
+      {% for col in selected_columns %}
+        <input type="hidden" name="columns" value="{{ col }}" />
+      {% endfor %}
+      <button class="button primary" type="submit">선택 조건에 적용</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <form method="get" class="form">
+      <div class="column-picker">
+        {% for col in all_columns %}
+          <label class="checkbox">
+            <input
+              type="checkbox"
+              name="columns"
+              value="{{ col }}"
+              {% if col in selected_columns %}checked{% endif %}
+            />
+            <span>{{ column_labels[col] }}</span>
+          </label>
+        {% endfor %}
+      </div>
+      <input type="hidden" name="q" value="{{ q }}" />
+      <input type="hidden" name="platform" value="{{ platform }}" />
+      <input type="hidden" name="category_main" value="{{ category_main }}" />
+      <input type="hidden" name="category_sub" value="{{ category_sub }}" />
+      <button class="button">컬럼 적용</button>
+    </form>
+  </section>
+
+  <section class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          {% for col in selected_columns %}
+            <th>{{ column_labels[col] }}</th>
+          {% endfor %}
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in influencers %}
+          <tr>
+            {% for col in selected_columns %}
+              <td>
+                {% if col == "thumbnail_url" and row[col] %}
+                  <img src="{{ row[col] }}" alt="썸네일" class="thumb" loading="lazy" />
+                {% elif col == "profile_url" and row[col] %}
+                  <a href="{{ row[col] }}" target="_blank" rel="noopener noreferrer">프로필 열기</a>
+                {% elif col == "instagram_username" and row[col] %}
+                  <a href="https://www.instagram.com/{{ row[col] }}/" target="_blank" rel="noopener noreferrer">
+                    @{{ row[col] }}
+                  </a>
+                {% elif col == "contact_email" and row[col] %}
+                  <a href="mailto:{{ row[col] }}">{{ row[col] }}</a>
+                {% elif col == "dm_message" and row[col] %}
+                  {% set dm_rendered = row[col] %}
+                  {% set dm_rendered = dm_rendered|replace("{이름}", row.account_name or "") %}
+                  {% set dm_rendered = dm_rendered|replace("{인스타그램아이디}", row.instagram_username or "") %}
+                  {% set dm_rendered = dm_rendered|replace("{플랫폼}", row.platform or "") %}
+                  {% set dm_rendered = dm_rendered|replace("{프로필URL}", row.profile_url or "") %}
+                  {{ dm_rendered }}
+                {% else %}
+                  {{ row[col] }}
+                {% endif %}
+              </td>
+            {% endfor %}
+            <td class="actions">
+              <a class="button small" href="{{ url_for('edit', influencer_id=row.id) }}">수정</a>
+              {% if row.instagram_username %}
+                <a
+                  class="button small ghost"
+                  href="https://www.instagram.com/direct/new/?username={{ row.instagram_username }}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  DM 열기
+                </a>
+              {% endif %}
+              {% if row.dm_message %}
+                {% set dm_rendered = row.dm_message %}
+                {% set dm_rendered = dm_rendered|replace("{이름}", row.account_name or "") %}
+                {% set dm_rendered = dm_rendered|replace("{인스타그램아이디}", row.instagram_username or "") %}
+                {% set dm_rendered = dm_rendered|replace("{플랫폼}", row.platform or "") %}
+                {% set dm_rendered = dm_rendered|replace("{프로필URL}", row.profile_url or "") %}
+                <button
+                  type="button"
+                  class="button small ghost copy-dm"
+                  data-message="{{ dm_rendered }}"
+                >
+                  DM 복사
+                </button>
+              {% endif %}
+              <form method="post" action="{{ url_for('delete', influencer_id=row.id) }}">
+                <button class="button danger small" onclick="return confirm('정말 삭제할까요?')">삭제</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="{{ selected_columns|length + 1 }}" class="empty">표시할 데이터가 없습니다.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

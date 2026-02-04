@@ -1,0 +1,98 @@
+{% extends "layout.html" %}
+
+{% block content %}
+  <section class="card">
+    <h2>{{ "수정" if influencer else "새 인플루언서 추가" }}</h2>
+    <form method="post" class="form grid">
+      <label>
+        인플루언서ID
+        <input type="text" name="influencer_id" value="{{ influencer.influencer_id if influencer else '' }}" />
+      </label>
+      <label>
+        이름/계정명
+        <input type="text" name="account_name" value="{{ influencer.account_name if influencer else '' }}" required />
+      </label>
+      <label>
+        플랫폼
+        <input type="text" name="platform" value="{{ influencer.platform if influencer else '' }}" />
+      </label>
+      <label>
+        카테고리(대)
+        <input type="text" name="category_main" value="{{ influencer.category_main if influencer else '' }}" />
+      </label>
+      <label>
+        카테고리(소)
+        <input type="text" name="category_sub" value="{{ influencer.category_sub if influencer else '' }}" />
+      </label>
+      <label>
+        프로필URL
+        <input type="text" name="profile_url" value="{{ influencer.profile_url if influencer else '' }}" />
+      </label>
+      <label>
+        인스타그램아이디
+        <input type="text" name="instagram_username" value="{{ influencer.instagram_username if influencer else '' }}" />
+      </label>
+      <label>
+        썸네일 URL
+        <input type="text" name="thumbnail_url" value="{{ influencer.thumbnail_url if influencer else '' }}" />
+      </label>
+      <label>
+        컨택이메일
+        <input type="text" name="contact_email" value="{{ influencer.contact_email if influencer else '' }}" />
+      </label>
+      <label>
+        에이전시/소속
+        <input type="text" name="agency" value="{{ influencer.agency if influencer else '' }}" />
+      </label>
+      <label>
+        팔로워/구독자(원본)
+        <input type="text" name="followers_raw" value="{{ influencer.followers_raw if influencer else '' }}" />
+      </label>
+      <label>
+        팔로워/구독자(숫자)
+        <input type="number" name="followers_num" value="{{ influencer.followers_num if influencer else '' }}" />
+      </label>
+      <label>
+        팔로워 구간
+        <input type="text" name="follower_range" value="{{ influencer.follower_range if influencer else '' }}" />
+      </label>
+      <label>
+        영상 활용도(高/中/低)
+        <input type="text" name="video_usage" value="{{ influencer.video_usage if influencer else '' }}" />
+      </label>
+      <label>
+        2030 타깃 적합도(1~5)
+        <input type="number" name="target_2030_score" min="1" max="5" value="{{ influencer.target_2030_score if influencer else '' }}" />
+      </label>
+      <label>
+        단가_BDC
+        <input type="text" name="price_bdc" value="{{ influencer.price_bdc if influencer else '' }}" />
+      </label>
+      <label>
+        단가_PPL
+        <input type="text" name="price_ppl" value="{{ influencer.price_ppl if influencer else '' }}" />
+      </label>
+      <label>
+        단가_Short/Shorts
+        <input type="text" name="price_short" value="{{ influencer.price_short if influencer else '' }}" />
+      </label>
+      <label>
+        단가_IG
+        <input type="text" name="price_ig" value="{{ influencer.price_ig if influencer else '' }}" />
+      </label>
+      <label class="full">
+        DM문구
+        <textarea name="dm_message" rows="3">{{ influencer.dm_message if influencer else '' }}</textarea>
+      </label>
+      <p class="muted">템플릿 변수: {이름}, {인스타그램아이디}, {플랫폼}, {프로필URL}</p>
+      <label class="full">
+        비고
+        <textarea name="notes" rows="3">{{ influencer.notes if influencer else '' }}</textarea>
+      </label>
+      <div class="actions">
+        <button class="button primary" type="submit">저장</button>
+        <a class="button ghost" href="{{ url_for('index') }}">취소</a>
+      </div>
+    </form>
+  </section>
+{% endblock %}

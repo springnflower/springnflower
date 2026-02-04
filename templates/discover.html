@@ -1,0 +1,70 @@
+{% extends "layout.html" %}
+
+{% block content %}
+  <section class="card">
+    <h2>추천 서칭 (외부 데이터)</h2>
+    <form method="get" class="form inline">
+      <input
+        type="text"
+        name="q"
+        value="{{ query }}"
+        placeholder="키워드 예: 자기관리, 홈카페, 브이로그"
+      />
+      <select name="platform">
+        <option value="" {% if platform == "" %}selected{% endif %}>플랫폼 전체</option>
+        <option value="Instagram" {% if platform == "Instagram" %}selected{% endif %}>Instagram</option>
+        <option value="YouTube" {% if platform == "YouTube" %}selected{% endif %}>YouTube</option>
+      </select>
+      <select name="limit">
+        {% for value in [5, 10, 15, 20, 25] %}
+          <option value="{{ value }}" {% if value == limit %}selected{% endif %}>{{ value }}개</option>
+        {% endfor %}
+      </select>
+      <button class="button">추천 받기</button>
+      <a class="button ghost" href="{{ url_for('discover') }}">초기화</a>
+    </form>
+    <p class="muted">
+      YouTube는 `YOUTUBE_API_KEY`, Instagram은 `SERPAPI_KEY`가 있어야 결과가 나옵니다.
+    </p>
+  </section>
+
+  {% if errors %}
+    <section class="card">
+      <div class="flash">
+        {% for error in errors %}
+          <p>{{ error }}</p>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="card">
+    {% if results %}
+      <div class="discover-grid">
+        {% for item in results %}
+          <div class="discover-card">
+            {% if item.thumbnail %}
+              <img src="{{ item.thumbnail }}" alt="썸네일" class="discover-thumb" loading="lazy" />
+            {% endif %}
+            <div class="discover-body">
+              <p class="discover-platform">{{ item.platform }}</p>
+              <h3 class="discover-title">{{ item.name }}</h3>
+              {% if item.followers %}
+                <p class="muted">구독자/팔로워: {{ item.followers }}</p>
+              {% endif %}
+              {% if item.description %}
+                <p class="discover-desc">{{ item.description }}</p>
+              {% endif %}
+              {% if item.instagram_username %}
+                <p class="muted">@{{ item.instagram_username }}</p>
+              {% endif %}
+              <a class="button small" href="{{ item.url }}" target="_blank" rel="noopener noreferrer">프로필 열기</a>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">키워드를 입력하고 추천을 받아보세요.</p>
+    {% endif %}
+  </section>
+{% endblock %}

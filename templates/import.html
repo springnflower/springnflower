@@ -1,0 +1,13 @@
+{% extends "layout.html" %}
+
+{% block content %}
+  <section class="card">
+    <h2>엑셀 가져오기</h2>
+    <p class="muted">컬럼명은 기존 엑셀과 동일하게 유지하면 자동 매핑됩니다.</p>
+    <form method="post" enctype="multipart/form-data" class="form">
+      <input type="file" name="file" accept=".xlsx,.xls" required />
+      <button class="button primary" type="submit">가져오기</button>
+      <a class="button ghost" href="{{ url_for('index') }}">돌아가기</a>
+    </form>
+  </section>
+{% endblock %}

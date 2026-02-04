@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>인플루언서 데이터</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="container header-inner">
+        <h1 class="logo"><a href="{{ url_for('index') }}">인플루언서 데이터</a></h1>
+        <nav class="nav">
+          <a href="{{ url_for('index') }}">목록</a>
+          <a href="{{ url_for('search') }}">서칭</a>
+          <a href="{{ url_for('discover') }}">추천 서칭</a>
+          <a href="{{ url_for('new') }}">추가</a>
+          <a href="{{ url_for('import_excel') }}">엑셀 가져오기</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container">
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          <div class="flash">
+            {% for message in messages %}
+              <p>{{ message }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+    <script>
+      document.addEventListener("click", async (event) => {
+        const button = event.target.closest(".copy-dm");
+        if (!button) {
+          return;
+        }
+        const message = button.getAttribute("data-message") || "";
+        if (!message) {
+          return;
+        }
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(message);
+          } else {
+            const textarea = document.createElement("textarea");
+            textarea.value = message;
+            textarea.style.position = "fixed";
+            textarea.style.left = "-9999px";
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand("copy");
+            textarea.remove();
+          }
+          button.textContent = "복사됨";
+          setTimeout(() => {
+            button.textContent = "DM 복사";
+          }, 1200);
+        } catch (error) {
+          alert("복사에 실패했어요. 수동으로 복사해 주세요.");
+        }
+      });
+    </script>
+  </body>
+</html>
