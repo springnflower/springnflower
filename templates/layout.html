@@ -34,32 +34,53 @@
       {% block content %}{% endblock %}
     </main>
     <script>
+      async function copyText(text) {
+        if (!text) {
+          return false;
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const ok = document.execCommand("copy");
+        textarea.remove();
+        return ok;
+      }
+
       document.addEventListener("click", async (event) => {
         const button = event.target.closest(".copy-dm");
-        if (!button) {
+        const openDm = event.target.closest(".open-dm");
+
+        if (!button && !openDm) {
           return;
         }
-        const message = button.getAttribute("data-message") || "";
-        if (!message) {
-          return;
-        }
+
+        const target = button || openDm;
+        const message = target.getAttribute("data-message") || "";
+        const url = target.getAttribute("data-url") || "";
         try {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(message);
-          } else {
-            const textarea = document.createElement("textarea");
-            textarea.value = message;
-            textarea.style.position = "fixed";
-            textarea.style.left = "-9999px";
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand("copy");
-            textarea.remove();
+          const copied = await copyText(message);
+          if (button && copied) {
+            button.textContent = "복사됨";
+            setTimeout(() => {
+              button.textContent = "DM 복사";
+            }, 1200);
           }
-          button.textContent = "복사됨";
-          setTimeout(() => {
-            button.textContent = "DM 복사";
-          }, 1200);
+          if (openDm && copied) {
+            openDm.textContent = "복사됨";
+            setTimeout(() => {
+              openDm.textContent = "DM 열기";
+            }, 1200);
+          }
+          if (openDm && url) {
+            window.open(url, "_blank", "noopener,noreferrer");
+          }
         } catch (error) {
           alert("복사에 실패했어요. 수동으로 복사해 주세요.");
         }

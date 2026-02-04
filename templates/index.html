@@ -125,28 +125,29 @@
             {% endfor %}
             <td class="actions">
               <a class="button small" href="{{ url_for('edit', influencer_id=row.id) }}">수정</a>
-              {% if row.instagram_username %}
-                <a
-                  class="button small ghost"
-                  href="https://www.instagram.com/direct/new/?username={{ row.instagram_username }}"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  DM 열기
-                </a>
-              {% endif %}
               {% if row.dm_message %}
                 {% set dm_rendered = row.dm_message %}
                 {% set dm_rendered = dm_rendered|replace("{이름}", row.account_name or "") %}
                 {% set dm_rendered = dm_rendered|replace("{인스타그램아이디}", row.instagram_username or "") %}
                 {% set dm_rendered = dm_rendered|replace("{플랫폼}", row.platform or "") %}
                 {% set dm_rendered = dm_rendered|replace("{프로필URL}", row.profile_url or "") %}
+                <button type="button" class="button small ghost copy-dm" data-message="{{ dm_rendered }}">
+                  DM 복사
+                </button>
+              {% endif %}
+              {% if row.instagram_username %}
+                {% set dm_rendered = row.dm_message or "" %}
+                {% set dm_rendered = dm_rendered|replace("{이름}", row.account_name or "") %}
+                {% set dm_rendered = dm_rendered|replace("{인스타그램아이디}", row.instagram_username or "") %}
+                {% set dm_rendered = dm_rendered|replace("{플랫폼}", row.platform or "") %}
+                {% set dm_rendered = dm_rendered|replace("{프로필URL}", row.profile_url or "") %}
                 <button
                   type="button"
-                  class="button small ghost copy-dm"
+                  class="button small ghost open-dm"
+                  data-url="https://www.instagram.com/direct/new/?username={{ row.instagram_username }}"
                   data-message="{{ dm_rendered }}"
                 >
-                  DM 복사
+                  DM 열기
                 </button>
               {% endif %}
               <form method="post" action="{{ url_for('delete', influencer_id=row.id) }}">
