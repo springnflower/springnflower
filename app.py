@@ -741,6 +741,16 @@ def create_app():
         flash("삭제되었습니다.")
         return redirect(url_for("index"))
 
+    @app.route("/delete-all", methods=["POST"])
+    @login_required
+    def delete_all():
+        conn, is_postgres = get_db()
+        run_query(conn, is_postgres, "DELETE FROM influencers")
+        conn.commit()
+        conn.close()
+        flash("전체 목록이 삭제되었습니다.")
+        return redirect(url_for("index"))
+
     @app.route("/import", methods=["GET", "POST"])
     @login_required
     def import_excel():

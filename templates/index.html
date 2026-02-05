@@ -38,6 +38,15 @@
       >
         엑셀 내보내기
       </a>
+      <form method="post" action="{{ url_for('delete_all') }}">
+        <button
+          type="submit"
+          class="button danger"
+          onclick="return confirm('정말 전체 목록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.')"
+        >
+          전체 삭제
+        </button>
+      </form>
     </form>
   </section>
 
