@@ -756,6 +756,7 @@ def create_app():
     def import_excel():
         if request.method == "POST":
             file = request.files.get("file")
+            fetch_thumbnails = request.form.get("fetch_thumbnails") == "yes"
             if not file or file.filename == "":
                 flash("엑셀 파일을 선택해 주세요.")
                 return redirect(url_for("import_excel"))
@@ -801,7 +802,7 @@ def create_app():
                     data["instagram_username"] = extract_instagram_username(
                         data["profile_url"]
                     )
-                if not data["thumbnail_url"] and data["profile_url"]:
+                if fetch_thumbnails and not data["thumbnail_url"] and data["profile_url"]:
                     data["thumbnail_url"] = fetch_thumbnail_url(data["profile_url"])
                 if not data["account_name"]:
                     continue

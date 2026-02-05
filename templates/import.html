@@ -6,6 +6,10 @@
     <p class="muted">컬럼명은 기존 엑셀과 동일하게 유지하면 자동 매핑됩니다.</p>
     <form method="post" enctype="multipart/form-data" class="form">
       <input type="file" name="file" accept=".xlsx,.xls" required />
+      <label class="checkbox">
+        <input type="checkbox" name="fetch_thumbnails" value="yes" />
+        <span>프로필URL로 썸네일 자동 수집 (시간이 오래 걸릴 수 있음)</span>
+      </label>
       <button class="button primary" type="submit">가져오기</button>
       <a class="button ghost" href="{{ url_for('index') }}">돌아가기</a>
     </form>
